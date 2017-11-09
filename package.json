@@ -1,0 +1,24 @@
+{
+  "name": "opentracing-bunyan",
+  "version": "1.0.0",
+  "description": "An opentracing client that wraps a bunyan-compatible logger with tracing metadata",
+  "main": "index.js",
+  "scripts": {
+    "example:simple": "node ./examples/simple.js | pino",
+    "example:http": "node ./examples/http.js | pino",
+    "test": "lab -v"
+  },
+  "keywords": ["opentracing","bunyan","pino"],
+  "author": "Geoff Goodman",
+  "license": "ISC",
+  "devDependencies": {
+    "eslint": "^4.10.0",
+    "lab": "^14.3.1",
+    "pino": "^4.10.0",
+    "wreck": "^12.5.1"
+  },
+  "dependencies": {
+    "opentracing": "^0.14.1",
+    "uuid": "^3.1.0"
+  }
+}
