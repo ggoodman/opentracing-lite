@@ -2,7 +2,7 @@ const Pino = require('pino'); // Could be bunyan as well
 const Tracing = require('../');
 
 const logger = Pino();
-const tracer = new Tracing.Tracer('simple', logger);
+const tracer = new Tracing.Tracer(logger);
 
 // Let's create a new span to represent a logical operation
 const span = tracer.startSpan('top-level operation');

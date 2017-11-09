@@ -19,7 +19,7 @@ describe('Basic usage', { parallel: true }, () => {
 
             done();
         });
-        const tracer = new Tracing.Tracer('test', logger);
+        const tracer = new Tracing.Tracer(logger);
         const span = tracer.startSpan('span');
         const spanLogger = span.logger();
 
@@ -32,7 +32,7 @@ describe('Basic usage', { parallel: true }, () => {
 
             done();
         });
-        const tracer = new Tracing.Tracer('test', logger);
+        const tracer = new Tracing.Tracer(logger);
         const span = tracer.startSpan('span');
         const spanLogger = span.logger();
 
@@ -48,7 +48,7 @@ describe('Basic usage', { parallel: true }, () => {
 
             done();
         });
-        const tracer = new Tracing.Tracer('test', logger);
+        const tracer = new Tracing.Tracer(logger);
         const span = tracer.startSpan('span');
 
         span.log({
@@ -67,7 +67,7 @@ describe('Basic usage', { parallel: true }, () => {
 
             done();
         });
-        const tracer = new Tracing.Tracer('test', logger);
+        const tracer = new Tracing.Tracer(logger);
         const span = tracer.startSpan('span');
 
         span.log(
@@ -88,7 +88,7 @@ describe('Basic usage', { parallel: true }, () => {
 
             done();
         });
-        const tracer = new Tracing.Tracer('test', logger);
+        const tracer = new Tracing.Tracer(logger);
         const span = tracer.startSpan('span');
 
         span.log({
@@ -111,7 +111,7 @@ describe('Basic usage', { parallel: true }, () => {
 
             done();
         });
-        const tracer = new Tracing.Tracer('test', logger);
+        const tracer = new Tracing.Tracer(logger);
         const span = tracer.startSpan('span');
         const childSpan = tracer.startSpan('child', { childOf: span });
 
@@ -131,7 +131,7 @@ describe('Baggage items', { parallel: true }, () => {
 
             done();
         });
-        const tracer = new Tracing.Tracer('test', logger);
+        const tracer = new Tracing.Tracer(logger);
         const span = tracer.startSpan('span');
 
         span.setBaggageItem('baggage', 'parent');
@@ -148,7 +148,7 @@ describe('Baggage items', { parallel: true }, () => {
 
             done();
         });
-        const tracer = new Tracing.Tracer('test', logger);
+        const tracer = new Tracing.Tracer(logger);
         const span = tracer.startSpan('span');
 
         span.setBaggageItem('baggage', 'parent');
@@ -166,7 +166,7 @@ describe('Baggage items', { parallel: true }, () => {
 describe('Cross-process serialization', { parallel: true }, () => {
     it('can be used to inject a span into http headers', done => {
         const logger = Logger.createNoopLogger();
-        const tracer = new Tracing.Tracer('test', logger);
+        const tracer = new Tracing.Tracer(logger);
         const span = tracer.startSpan('span');
 
         const headers = {};
@@ -177,7 +177,6 @@ describe('Cross-process serialization', { parallel: true }, () => {
             headers[Tracing.Tracer.CARRIER_KEY_BAGGAGE_ITEMS] ===
                 JSON.stringify({})
         );
-        Assert(headers[Tracing.Tracer.CARRIER_KEY_SERVICE_KEYS] === 'test');
         Assert(
             headers[Tracing.Tracer.CARRIER_KEY_SPAN_IDS] ===
                 span.context().spanId
@@ -192,7 +191,7 @@ describe('Cross-process serialization', { parallel: true }, () => {
 
     it('can revive serialized state', done => {
         const logger = Logger.createNoopLogger();
-        const tracer = new Tracing.Tracer('test', logger);
+        const tracer = new Tracing.Tracer(logger);
         const span = tracer.startSpan('span');
 
         const headers = {};
@@ -208,7 +207,7 @@ describe('Cross-process serialization', { parallel: true }, () => {
 
     it('can revive serialized state with baggage items', done => {
         const logger = Logger.createNoopLogger();
-        const tracer = new Tracing.Tracer('test', logger);
+        const tracer = new Tracing.Tracer(logger);
         const span = tracer.startSpan('span');
 
         span.setBaggageItem('baggage', 'item');
@@ -226,7 +225,7 @@ describe('Cross-process serialization', { parallel: true }, () => {
 
     it('can revive serialized state including childOf relationships', done => {
         const logger = Logger.createNoopLogger();
-        const tracer = new Tracing.Tracer('test', logger);
+        const tracer = new Tracing.Tracer(logger);
         const span = tracer.startSpan('span');
         const childSpan = tracer.startSpan('child', { childOf: span });
 
@@ -258,7 +257,7 @@ describe('Cross-process serialization', { parallel: true }, () => {
 
             done();
         });
-        const tracer = new Tracing.Tracer('test', logger);
+        const tracer = new Tracing.Tracer(logger);
         const span = tracer.startSpan('span');
         const childSpan = tracer.startSpan('child', { childOf: span });
 

@@ -8,7 +8,7 @@ const Wreck = require('wreck');
 const logger = Pino();
 
 const createServer = cb => {
-    const tracer = new Tracing.Tracer('hello world server', logger);
+    const tracer = new Tracing.Tracer(logger);
 
     // Set up a server that will start a child span from metadata
     // obtained from request headers
@@ -49,7 +49,7 @@ const createServer = cb => {
 };
 
 const runClient = cb => {
-    const tracer = new Tracing.Tracer('hello world client', logger);
+    const tracer = new Tracing.Tracer(logger);
     // We are about to invoke a remote api that we will associate with
     // a span. All spans derived from this invocation will share a
     // common traceId while each span will have a distinct spanId.

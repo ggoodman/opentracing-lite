@@ -8,7 +8,15 @@
     "example:http": "node ./examples/http.js | pino",
     "test": "lab -v"
   },
-  "keywords": ["opentracing","bunyan","pino"],
+  "keywords": [
+    "opentracing",
+    "bunyan",
+    "pino"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ggoodman/opentracing-bunyan.git"
+  },
   "author": "Geoff Goodman",
   "license": "ISC",
   "devDependencies": {
