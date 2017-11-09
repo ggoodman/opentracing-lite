@@ -9,19 +9,19 @@ This module provides a mechanism to automatically attach distributed tracing inf
 ### Log a message that is associated with a trace
 
 ```js
+'use strict';
+
 const Pino = require('pino'); // Could be bunyan as well
 const Tracing = require('../');
 
 const logger = Pino();
-const tracer = new Tracing.Tracer('example', logger);
+const tracer = new Tracing.Tracer(logger);
 
 // Let's create a new span to represent a logical operation
 const span = tracer.startSpan('top-level operation');
 
 // Something important happens and we want to emit a log message with tracing data attached
 span.logger().info({ meta: 'data' }, 'something important happened');
-
-// Spans should always be finished
 span.finish();
 ```
 
@@ -32,6 +32,8 @@ Here we are simulating two processes -- one that is an http server and another t
 Logging messages on both the client and server will have tracing metadata that allows correlating events across process boundaries.
 
 ```js
+'use strict';
+
 const Http = require('http');
 const Pino = require('pino'); // Could be bunyan as well
 const Tracing = require('../');
@@ -40,7 +42,7 @@ const Wreck = require('wreck');
 const logger = Pino();
 
 const createServer = cb => {
-    const tracer = new Tracing.Tracer('hello world server', logger);
+    const tracer = new Tracing.Tracer(logger);
 
     // Set up a server that will start a child span from metadata
     // obtained from request headers
@@ -81,7 +83,7 @@ const createServer = cb => {
 };
 
 const runClient = cb => {
-    const tracer = new Tracing.Tracer('hello world client', logger);
+    const tracer = new Tracing.Tracer(logger);
     // We are about to invoke a remote api that we will associate with
     // a span. All spans derived from this invocation will share a
     // common traceId while each span will have a distinct spanId.
