@@ -140,7 +140,6 @@ describe('Baggage items', { parallel: true }, () => {
 
 describe('Cross-process serialization', { parallel: true }, () => {
     it('can be used to inject a span into http headers', done => {
-        const logger = Logger.createNoopLogger();
         const tracer = new Tracing.Tracer();
         const span = tracer.startSpan('span');
 
@@ -165,7 +164,6 @@ describe('Cross-process serialization', { parallel: true }, () => {
     });
 
     it('can revive serialized state', done => {
-        const logger = Logger.createNoopLogger();
         const tracer = new Tracing.Tracer();
         const span = tracer.startSpan('span');
 
@@ -184,7 +182,6 @@ describe('Cross-process serialization', { parallel: true }, () => {
     });
 
     it('can revive serialized state with baggage items', done => {
-        const logger = Logger.createNoopLogger();
         const tracer = new Tracing.Tracer();
         const span = tracer.startSpan('span');
 
@@ -205,7 +202,6 @@ describe('Cross-process serialization', { parallel: true }, () => {
     });
 
     it('can revive serialized state including childOf relationships', done => {
-        const logger = Logger.createNoopLogger();
         const tracer = new Tracing.Tracer();
         const span = tracer.startSpan('span');
         const childSpan = tracer.startSpan('child', { childOf: span });

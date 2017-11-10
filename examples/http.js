@@ -22,15 +22,14 @@ const createServer = cb => {
         );
 
         // Next create a new child span of the extracted context
-        const span = tracer.startSpan('get hello world', {
+        const span = tracer.startSpan(`${req.method} ${req.url}`, {
             childOf: parentSpanContext,
             tags: { req },
         });
 
         // 50% of the time, let's generate a fake error
         if (Math.random() < 0.5) {
-            res.writeHead(204);
-            res.end();
+            throw new Error('This can\'t be good');
         } else {
             res.writeHead(200);
             res.end('hello world');
@@ -88,5 +87,7 @@ const runClient = cb => {
         cb();
     });
 };
+
+Logging.finishSpansOnUncaught(true);
 
 createServer(cb => runClient(cb));
