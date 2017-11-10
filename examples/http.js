@@ -1,19 +1,13 @@
 'use strict';
 
 const Http = require('http');
-const Pino = require('pino'); // Could be bunyan as well
-const Tracing = require('../');
 const Wreck = require('wreck');
 
-const logger = Pino();
-const tracer = new Tracing.Tracer({
-    onStartSpan(span) {
-        logger.info(span.toJSON(), `started ${span.getOperationName()}`);
-    },
-    onFinishSpan(span) {
-        logger.info(span.toJSON(), `finished ${span.getOperationName()}`);
-    },
-});
+const Logging = require('./lib/logging');
+const Tracing = require('../');
+
+const logger = Logging.createLogger();
+const tracer = Logging.createLoggingTracer(logger);
 
 const createServer = cb => {
     // Set up a server that will start a child span from metadata
@@ -30,19 +24,27 @@ const createServer = cb => {
         // Next create a new child span of the extracted context
         const span = tracer.startSpan('get hello world', {
             childOf: parentSpanContext,
+            tags: { req },
         });
 
-        // span.addTags({ req, res });
-
-        res.writeHead(200);
-        res.end('hello world');
+        // 50% of the time, let's generate a fake error
+        if (Math.random() < 0.5) {
+            res.writeHead(204);
+            res.end();
+        } else {
+            res.writeHead(200);
+            res.end('hello world');
+        }
 
         // Make sure we log errors and finish the span
         res.on('error', error => {
-            span.error({ error }, 'error sending response');
+            span.addTags({ error, level: 'error' });
             span.finish();
         });
-        res.on('finish', () => span.finish());
+        res.on('finish', () => {
+            span.addTags({ res });
+            span.finish();
+        });
     });
 
     server.listen(8080, () => {
@@ -67,15 +69,20 @@ const runClient = cb => {
 
     Wreck.get('http://localhost:8080', { headers }, (error, res, data) => {
         if (error) {
-            logger.error({ error, span }, 'error invoking hello world service');
+            span.addTags({ error, level: 'error' });
             span.finish();
+
+            return cb(error);
+        } else if (res.statusCode !== 200) {
+            const error = new Error('Unexpected status code from client');
+
+            span.addTags({ error, level: 'error', res });
+            span.finish();
+
             return cb(error);
         }
 
-        span.addTags({
-            data: data.toString('utf8'),
-            statusCode: res.statusCode,
-        });
+        span.addTags({ res, data: data.toString('utf8') });
         span.finish();
 
         cb();
