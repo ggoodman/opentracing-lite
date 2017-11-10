@@ -6,10 +6,16 @@ const Tracing = require('../');
 const Wreck = require('wreck');
 
 const logger = Pino();
+const tracer = new Tracing.Tracer({
+    onStartSpan(span) {
+        logger.info(span.toJSON(), `started ${span.getOperationName()}`);
+    },
+    onFinishSpan(span) {
+        logger.info(span.toJSON(), `finished ${span.getOperationName()}`);
+    },
+});
 
 const createServer = cb => {
-    const tracer = new Tracing.Tracer(logger);
-
     // Set up a server that will start a child span from metadata
     // obtained from request headers
     const server = Http.createServer((req, res) => {
@@ -26,14 +32,14 @@ const createServer = cb => {
             childOf: parentSpanContext,
         });
 
-        span.logger().info('received hello world request');
+        // span.addTags({ req, res });
 
         res.writeHead(200);
         res.end('hello world');
 
         // Make sure we log errors and finish the span
-        res.on('error', err => {
-            span.logger().error({ err }, 'error sending response');
+        res.on('error', error => {
+            span.error({ error }, 'error sending response');
             span.finish();
         });
         res.on('finish', () => span.finish());
@@ -49,33 +55,27 @@ const createServer = cb => {
 };
 
 const runClient = cb => {
-    const tracer = new Tracing.Tracer(logger);
     // We are about to invoke a remote api that we will associate with
     // a span. All spans derived from this invocation will share a
     // common traceId while each span will have a distinct spanId.
     const span = tracer.startSpan('hello world client request');
-
-    span.logger().info('invoking hello world service');
-
     const headers = {};
 
     // IMPORTANT: Here is where we are encoding the current trace context
     // in a way that can cross process boundaries using http headers.
     tracer.inject(span, Tracing.FORMAT_HTTP_HEADERS, headers);
 
-    Wreck.get('http://localhost:8080', { headers }, (err, res, data) => {
-        if (err) {
-            span.logger().error({ err }, 'error invoking hello world service');
+    Wreck.get('http://localhost:8080', { headers }, (error, res, data) => {
+        if (error) {
+            logger.error({ error, span }, 'error invoking hello world service');
             span.finish();
-            return cb(err);
+            return cb(error);
         }
 
-        span
-            .logger()
-            .info(
-                { data: data.toString('utf8'), statusCode: res.statusCode },
-                'received hello world response'
-            );
+        span.addTags({
+            data: data.toString('utf8'),
+            statusCode: res.statusCode,
+        });
         span.finish();
 
         cb();

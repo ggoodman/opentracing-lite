@@ -1,27 +1,37 @@
-# An [opentracing](http://opentracing.io)-compliant logging solution
+# An simple [opentracing](http://opentracing.io) implementation
 
-This module provides a mechanism to automatically attach distributed tracing information to [bunyan](https://www.npmjs.com/package/bunyan)-compatible logger that can cross process boundaries. The module implements the `Tracer#inject` and `Tracer#extract` methods that allow serlializing and reviving tracer metadata, respectively.
-
-> Note: This module is also designed to also work with bunyan-compatible loggers like [pino](https://www.npmjs.com/package/pino).
+This module provides very basic implementation of an opentracing client.
 
 ## Examples
 
 ### Log a message that is associated with a trace
 
+`npm run example:simple`
+
 ```js
 'use strict';
 
-const Pino = require('pino'); // Could be bunyan as well
+const Pino = require('pino');
 const Tracing = require('../');
 
-const logger = Pino();
-const tracer = new Tracing.Tracer(logger);
+const logger = Pino({ serializers: Pino.stdSerializers });
+const tracer = new Tracing.Tracer({
+    onStartSpan(span) {
+        logger.info(span.toJSON(), `started ${span.getOperationName()}`);
+    },
+    onFinishSpan(span) {
+        logger.info(span.toJSON(), `finished ${span.getOperationName()}`);
+    },
+});
 
 // Let's create a new span to represent a logical operation
 const span = tracer.startSpan('top-level operation');
 
 // Something important happens and we want to emit a log message with tracing data attached
-span.logger().info({ meta: 'data' }, 'something important happened');
+logger.warn(span.toJSON(), 'something strange happened');
+
+span.setTag('err', new Error('The sky is falling'));
+
 span.finish();
 ```
 
@@ -30,6 +40,8 @@ span.finish();
 Here we are simulating two processes -- one that is an http server and another that is a client of that server. We will start a trace in the client that will be propagated through to the server using http headers as a transport.
 
 Logging messages on both the client and server will have tracing metadata that allows correlating events across process boundaries.
+
+`npm run example:http`
 
 ```js
 'use strict';
@@ -40,10 +52,16 @@ const Tracing = require('../');
 const Wreck = require('wreck');
 
 const logger = Pino();
+const tracer = new Tracing.Tracer({
+    onStartSpan(span) {
+        logger.info(span.toJSON(), `started ${span.getOperationName()}`);
+    },
+    onFinishSpan(span) {
+        logger.info(span.toJSON(), `finished ${span.getOperationName()}`);
+    },
+});
 
 const createServer = cb => {
-    const tracer = new Tracing.Tracer(logger);
-
     // Set up a server that will start a child span from metadata
     // obtained from request headers
     const server = Http.createServer((req, res) => {
@@ -60,14 +78,14 @@ const createServer = cb => {
             childOf: parentSpanContext,
         });
 
-        span.logger().info('received hello world request');
+        // span.addTags({ req, res });
 
         res.writeHead(200);
         res.end('hello world');
 
         // Make sure we log errors and finish the span
-        res.on('error', err => {
-            span.logger().error({ err }, 'error sending response');
+        res.on('error', error => {
+            span.error({ error }, 'error sending response');
             span.finish();
         });
         res.on('finish', () => span.finish());
@@ -83,33 +101,27 @@ const createServer = cb => {
 };
 
 const runClient = cb => {
-    const tracer = new Tracing.Tracer(logger);
     // We are about to invoke a remote api that we will associate with
     // a span. All spans derived from this invocation will share a
     // common traceId while each span will have a distinct spanId.
     const span = tracer.startSpan('hello world client request');
-
-    span.logger().info('invoking hello world service');
-
     const headers = {};
 
     // IMPORTANT: Here is where we are encoding the current trace context
     // in a way that can cross process boundaries using http headers.
     tracer.inject(span, Tracing.FORMAT_HTTP_HEADERS, headers);
 
-    Wreck.get('http://localhost:8080', { headers }, (err, res, data) => {
-        if (err) {
-            span.logger().error({ err }, 'error invoking hello world service');
+    Wreck.get('http://localhost:8080', { headers }, (error, res, data) => {
+        if (error) {
+            logger.error({ error, span }, 'error invoking hello world service');
             span.finish();
-            return cb(err);
+            return cb(error);
         }
 
-        span
-            .logger()
-            .info(
-                { data: data.toString('utf8'), statusCode: res.statusCode },
-                'received hello world response'
-            );
+        span.addTags({
+            data: data.toString('utf8'),
+            statusCode: res.statusCode,
+        });
         span.finish();
 
         cb();
