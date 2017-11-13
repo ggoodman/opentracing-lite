@@ -3,23 +3,49 @@
 const Pino = require('pino'); // Could be bunyan as well
 const Tracing = require('../../');
 
-const inflightSpans = new Set();
+const inflightSpans = new Map();
 
-function onUncaughtException(error) {
+exports.logInflightTracesOnUncaught = (error, req) => {
     const now = Date.now();
+    const spanContext =
+        req.span && typeof req.span.context === 'function'
+            ? req.span.context()
+            : null;
+    const inflightSpansOfTrace =
+        spanContext && inflightSpans.has(spanContext.traceId)
+            ? Array.from(
+                  inflightSpans.get(spanContext.traceId)
+              ).reverse()
+            : [];
 
-    for (const span of inflightSpans) {
-        span.addTags({ error, level: 'fatal', uncaught: true });
-        span.finish(now);
+    if (spanContext && inflightSpans.has(spanContext.traceId)) {
+        inflightSpans.get(spanContext.traceId).clear();
     }
 
-    inflightSpans.clear();
-}
+    for (const i in inflightSpansOfTrace) {
+        const span = inflightSpansOfTrace[i];
+        const level = span === inflightSpansOfTrace[0] ? 'fatal' : 'error';
+
+        span.addTags({ error, level, uncaught: true });
+        span.finish(now);
+    }
+};
 
 function logSpanLifecycleEvent(event, span, logger) {
     const loggerMeta = { span };
     const spanContext = span.context();
     let level = 'info';
+
+    for (const key in spanContext.baggageItems) {
+        if (
+            key === 'level' &&
+            typeof logger[spanContext.baggageItems['level']] === 'function'
+        ) {
+            level = spanContext.baggageItems['level'];
+        } else {
+            loggerMeta[key] = spanContext.baggageItems[key];
+        }
+    }
 
     for (const key in span._tags) {
         if (
@@ -28,20 +54,9 @@ function logSpanLifecycleEvent(event, span, logger) {
         ) {
             level = span._tags['level'];
         } else if (key === 'uncaught') {
-            event = 'uncaught exception in'
+            event = 'uncaught exception in';
         } else {
             loggerMeta[key] = span._tags[key];
-        }
-    }
-
-    for (const key in spanContext.baggageItems) {
-        if (
-            key === 'level' &&
-            typeof logger[span._tags['level']] === 'function'
-        ) {
-            level = span._tags['level'];
-        } else {
-            loggerMeta[key] = spanContext.baggageItems[key];
         }
     }
 
@@ -51,7 +66,12 @@ function logSpanLifecycleEvent(event, span, logger) {
 exports.createLogger = () =>
     Pino({
         serializers: {
-            error: Pino.stdSerializers.err,
+            error: error => ({
+                message: error.message,
+                code: error.code,
+                name: error.name,
+                stack: error.stack,
+            }),
             req: Pino.stdSerializers.req,
             res: Pino.stdSerializers.res,
             span(span) {
@@ -78,23 +98,38 @@ exports.createLoggingTracer = logger =>
             }
         },
         onStartSpan(span) {
-            inflightSpans.add(span);
+            let spanContext = span.context();
+
+            if (!inflightSpans.has(spanContext.traceId)) {
+                inflightSpans.set(spanContext.traceId, new Set());
+            }
+
+            inflightSpans.get(spanContext.traceId).add(span);
             return logSpanLifecycleEvent('started', span, logger);
         },
         onFinishSpan(span) {
-            inflightSpans.delete(span);
+            const spanContext = span.context();
+
+            if (inflightSpans.has(spanContext.traceId)) {
+                inflightSpans.get(spanContext.traceId).delete(span);
+
+                if (!spanContext.parentSpanId) {
+                    const unfinishedSpans = Array.from(
+                        inflightSpans.get(spanContext.traceId)
+                    ).reverse();
+
+                    inflightSpans.delete(spanContext.traceId);
+
+                    for (const unfinishedSpan of unfinishedSpans) {
+                        unfinishedSpan.addTags({
+                            level: 'warn',
+                            unfinished: true,
+                        });
+                        unfinishedSpan.finish();
+                    }
+                }
+            }
+
             return logSpanLifecycleEvent('finished', span, logger);
         },
     });
-
-exports.finishSpansOnUncaught = enable => {
-    process.removeListener('uncaughtException', onUncaughtException);
-
-    if (enable !== false) {
-        process.on('uncaughtException', onUncaughtException);
-
-        return true;
-    }
-
-    return false;
-};

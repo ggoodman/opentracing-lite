@@ -1,5 +1,6 @@
 'use strict';
 
+const Domain = require('domain');
 const Http = require('http');
 const Wreck = require('wreck');
 
@@ -13,37 +14,33 @@ const createServer = cb => {
     // Set up a server that will start a child span from metadata
     // obtained from request headers
     const server = Http.createServer((req, res) => {
-        // IMPORTANT: Here is where we are restoring the tracing
-        // context that has been passed across process boundaries
-        // using http headers.
-        const parentSpanContext = tracer.extract(
-            Tracing.FORMAT_HTTP_HEADERS,
-            req.headers
-        );
+        const domain = Domain.create();
 
-        // Next create a new child span of the extracted context
-        const span = tracer.startSpan(`${req.method} ${req.url}`, {
-            childOf: parentSpanContext,
-            tags: { req },
+        domain.add(req);
+        domain.add(res);
+        domain.on('error', error => {
+            Logging.logInflightTracesOnUncaught(error, req, res);
+
+            if (!res.headersSent) {
+                res.writeHead(500);
+                res.end('Server error');
+            }
+
+            return server.close(error => {
+                if (error) {
+                    logger.error(
+                        { error },
+                        'error stopping server after uncaught exception'
+                    );
+                }
+
+                logger.info('server stopped');
+
+                return process.exit(1);
+            });
         });
 
-        // 50% of the time, let's generate a fake error
-        if (Math.random() < 0.5) {
-            throw new Error('This can\'t be good');
-        } else {
-            res.writeHead(200);
-            res.end('hello world');
-        }
-
-        // Make sure we log errors and finish the span
-        res.on('error', error => {
-            span.addTags({ error, level: 'error' });
-            span.finish();
-        });
-        res.on('finish', () => {
-            span.addTags({ res });
-            span.finish();
-        });
+        return domain.run(handleRequest.bind(this, req, res));
     });
 
     server.listen(8080, () => {
@@ -52,6 +49,42 @@ const createServer = cb => {
         logger.info('server started');
 
         cb(() => server.close());
+    });
+};
+
+const handleRequest = (req, res) => {
+    // IMPORTANT: Here is where we are restoring the tracing
+    // context that has been passed across process boundaries
+    // using http headers.
+    const parentSpanContext = tracer.extract(
+        Tracing.FORMAT_HTTP_HEADERS,
+        req.headers
+    );
+
+    // Next create a new child span of the extracted context
+    const span = tracer.startSpan(`${req.method} ${req.url}`, {
+        childOf: parentSpanContext,
+        tags: { req },
+    });
+
+    req.span = res.span = span;
+
+    // 50% of the time, let's generate a fake error
+    if (Math.random() < 0.5) {
+        throw new Error("This can't be good");
+    } else {
+        res.writeHead(200);
+        res.end('hello world');
+    }
+
+    // Make sure we log errors and finish the span
+    res.on('error', error => {
+        span.addTags({ error, level: 'error' });
+        span.finish();
+    });
+    res.on('finish', () => {
+        span.addTags({ res });
+        span.finish();
     });
 };
 
@@ -87,7 +120,5 @@ const runClient = cb => {
         cb();
     });
 };
-
-Logging.finishSpansOnUncaught(true);
 
 createServer(cb => runClient(cb));
