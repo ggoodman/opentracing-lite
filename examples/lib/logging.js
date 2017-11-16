@@ -13,9 +13,7 @@ exports.logInflightTracesOnUncaught = (error, req) => {
             : null;
     const inflightSpansOfTrace =
         spanContext && inflightSpans.has(spanContext.traceId)
-            ? Array.from(
-                  inflightSpans.get(spanContext.traceId)
-              ).reverse()
+            ? Array.from(inflightSpans.get(spanContext.traceId)).reverse()
             : [];
 
     if (spanContext && inflightSpans.has(spanContext.traceId)) {
@@ -24,9 +22,13 @@ exports.logInflightTracesOnUncaught = (error, req) => {
 
     for (const i in inflightSpansOfTrace) {
         const span = inflightSpansOfTrace[i];
-        const level = span === inflightSpansOfTrace[0] ? 'fatal' : 'error';
 
-        span.addTags({ error, level, uncaught: true });
+        if (i === '0') {
+            span.addTags({ error, level: 'fatal', uncaught: true });
+        } else {
+            span.addTags({ level: 'error', uncaught: true });
+        }
+
         span.finish(now);
     }
 };

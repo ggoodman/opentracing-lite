@@ -99,7 +99,7 @@ const runClient = cb => {
     // in a way that can cross process boundaries using http headers.
     tracer.inject(span, Tracing.FORMAT_HTTP_HEADERS, headers);
 
-    Wreck.get('http://localhost:8080', { headers }, (error, res, data) => {
+    Wreck.request('GET', 'http://localhost:8080', { headers }, (error, res) => {
         if (error) {
             span.addTags({ error, level: 'error' });
             span.finish();
@@ -114,10 +114,19 @@ const runClient = cb => {
             return cb(error);
         }
 
-        span.addTags({ res, data: data.toString('utf8') });
-        span.finish();
+        return Wreck.read(res, {}, (error, data) => {
+            if (error) {
+                span.addTags({ error, level: 'error' });
+                span.finish();
 
-        cb();
+                return cb(error);
+            }
+
+            span.addTags({ res, data: data.toString('utf8') });
+            span.finish();
+
+            cb();
+        });
     });
 };
 
