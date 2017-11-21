@@ -43,12 +43,12 @@ const createServer = cb => {
         return domain.run(handleRequest.bind(this, req, res));
     });
 
-    server.listen(8080, () => {
+    server.listen(() => {
         // This will not show any tracing info since we are
         // using the underlying logger.
         logger.info('server started');
 
-        cb(() => server.close());
+        cb(server, () => server.close());
     });
 };
 
@@ -88,7 +88,7 @@ const handleRequest = (req, res) => {
     });
 };
 
-const runClient = cb => {
+const runClient = (server, cb) => {
     // We are about to invoke a remote api that we will associate with
     // a span. All spans derived from this invocation will share a
     // common traceId while each span will have a distinct spanId.
@@ -99,35 +99,40 @@ const runClient = cb => {
     // in a way that can cross process boundaries using http headers.
     tracer.inject(span, Tracing.FORMAT_HTTP_HEADERS, headers);
 
-    Wreck.request('GET', 'http://localhost:8080', { headers }, (error, res) => {
-        if (error) {
-            span.addTags({ error, level: 'error' });
-            span.finish();
-
-            return cb(error);
-        } else if (res.statusCode !== 200) {
-            const error = new Error('Unexpected status code from client');
-
-            span.addTags({ error, level: 'error', res });
-            span.finish();
-
-            return cb(error);
-        }
-
-        return Wreck.read(res, {}, (error, data) => {
+    Wreck.request(
+        'GET',
+        `http://localhost:${server.address().port}`,
+        { headers },
+        (error, res) => {
             if (error) {
                 span.addTags({ error, level: 'error' });
                 span.finish();
 
                 return cb(error);
+            } else if (res.statusCode !== 200) {
+                const error = new Error('Unexpected status code from client');
+
+                span.addTags({ error, level: 'error', res });
+                span.finish();
+
+                return cb(error);
             }
 
-            span.addTags({ res, data: data.toString('utf8') });
-            span.finish();
+            return Wreck.read(res, {}, (error, data) => {
+                if (error) {
+                    span.addTags({ error, level: 'error' });
+                    span.finish();
 
-            cb();
-        });
-    });
+                    return cb(error);
+                }
+
+                span.addTags({ res, data: data.toString('utf8') });
+                span.finish();
+
+                cb();
+            });
+        }
+    );
 };
 
-createServer(cb => runClient(cb));
+createServer(runClient);

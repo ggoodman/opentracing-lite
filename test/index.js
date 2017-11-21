@@ -11,7 +11,9 @@ const describe = lab.describe;
 describe('Basic usage', { parallel: true }, () => {
     it('will invoke the onStartSpan hook', done => {
         const tracer = new Tracing.Tracer({
-            onStartSpan(span) {
+            onStartSpan(event) {
+                const span = event.span;
+
                 Assert(span.getOperationName('span'));
                 done();
             },
@@ -22,7 +24,9 @@ describe('Basic usage', { parallel: true }, () => {
 
     it('will invoke the onFinishSpan hook', done => {
         const tracer = new Tracing.Tracer({
-            onFinishSpan(span) {
+            onFinishSpan(event) {
+                const span = event.span;
+
                 Assert(span.getOperationName('span'));
                 done();
             },
@@ -33,45 +37,53 @@ describe('Basic usage', { parallel: true }, () => {
 
 describe('Cross-process serialization', { parallel: true }, () => {
     it('can be used to inject a span into http headers', done => {
-        const tracer = new Tracing.Tracer();
-        const span = tracer.startSpan('span');
+        const tracer = new Tracing.Tracer({
+            onInjectSpanContext(event) {
+                Assert(event.carrier === headers);
+                Assert(event.format === Tracing.FORMAT_HTTP_HEADERS);
+                Assert(event.spanContext === span.context());
 
+                Assert(
+                    event.carrier[Tracing.Tracer.CARRIER_KEY_BAGGAGE_ITEMS] ===
+                        JSON.stringify({})
+                );
+                Assert(
+                    event.carrier[Tracing.Tracer.CARRIER_KEY_SPAN_IDS] ===
+                        span.context().spanId
+                );
+                Assert(
+                    event.carrier[Tracing.Tracer.CARRIER_KEY_TRACE_ID] ===
+                        span.context().traceId
+                );
+
+                done();
+            },
+        });
+        const span = tracer.startSpan('span');
         const headers = {};
 
         tracer.inject(span, Tracing.FORMAT_HTTP_HEADERS, headers);
-
-        Assert(
-            headers[Tracing.Tracer.CARRIER_KEY_BAGGAGE_ITEMS] ===
-                JSON.stringify({})
-        );
-        Assert(
-            headers[Tracing.Tracer.CARRIER_KEY_SPAN_IDS] ===
-                span.context().spanId
-        );
-        Assert(
-            headers[Tracing.Tracer.CARRIER_KEY_TRACE_ID] ===
-                span.context().traceId
-        );
-
-        done();
     });
 
     it('can revive serialized state', done => {
-        const tracer = new Tracing.Tracer();
-        const span = tracer.startSpan('span');
+        const tracer = new Tracing.Tracer({
+            onExtractSpanContext(event) {
+                Assert(event.carrier === headers);
+                Assert(event.format === Tracing.FORMAT_HTTP_HEADERS);
 
+                Assert.deepEqual(span.context(), event.spanContext);
+
+                done();
+            },
+        });
+        const span = tracer.startSpan('span');
         const headers = {};
 
         tracer.inject(span, Tracing.FORMAT_HTTP_HEADERS, headers);
-
-        const revivedSpanContext = tracer.extract(
+        tracer.extract(
             Tracing.FORMAT_HTTP_HEADERS,
             headers
         );
-
-        Assert.deepEqual(span.context(), revivedSpanContext);
-
-        done();
     });
 
     it('can revive serialized state with baggage items', done => {

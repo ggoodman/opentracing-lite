@@ -1,5 +1,5 @@
 {
-  "name": "opentracing-carrier",
+  "name": "opentracing-lite",
   "version": "1.0.0",
   "description": "A simple opentracing client",
   "main": "index.js",

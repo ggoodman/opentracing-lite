@@ -92,28 +92,28 @@ exports.createLogger = () =>
 
 exports.createLoggingTracer = logger =>
     new Tracing.Tracer({
-        onExtractSpanContext(spanContext, format, carrier) {
-            if (format === Tracing.FORMAT_HTTP_HEADERS) {
-                delete carrier[Tracing.Tracer.CARRIER_KEY_BAGGAGE_ITEMS];
-                delete carrier[Tracing.Tracer.CARRIER_KEY_SPAN_IDS];
-                delete carrier[Tracing.Tracer.CARRIER_KEY_TRACE_ID];
+        onExtractSpanContext(event) {
+            if (event.format === Tracing.FORMAT_HTTP_HEADERS) {
+                delete event.carrier[Tracing.Tracer.CARRIER_KEY_BAGGAGE_ITEMS];
+                delete event.carrier[Tracing.Tracer.CARRIER_KEY_SPAN_IDS];
+                delete event.carrier[Tracing.Tracer.CARRIER_KEY_TRACE_ID];
             }
         },
-        onStartSpan(span) {
-            let spanContext = span.context();
+        onStartSpan(event) {
+            let spanContext = event.span.context();
 
             if (!inflightSpans.has(spanContext.traceId)) {
                 inflightSpans.set(spanContext.traceId, new Set());
             }
 
-            inflightSpans.get(spanContext.traceId).add(span);
-            return logSpanLifecycleEvent('started', span, logger);
+            inflightSpans.get(spanContext.traceId).add(event.span);
+            return logSpanLifecycleEvent('started', event.span, logger);
         },
-        onFinishSpan(span) {
-            const spanContext = span.context();
+        onFinishSpan(event) {
+            const spanContext = event.span.context();
 
             if (inflightSpans.has(spanContext.traceId)) {
-                inflightSpans.get(spanContext.traceId).delete(span);
+                inflightSpans.get(spanContext.traceId).delete(event.span);
 
                 if (!spanContext.parentSpanId) {
                     const unfinishedSpans = Array.from(
@@ -132,6 +132,6 @@ exports.createLoggingTracer = logger =>
                 }
             }
 
-            return logSpanLifecycleEvent('finished', span, logger);
+            return logSpanLifecycleEvent('finished', event.span, logger);
         },
     });
