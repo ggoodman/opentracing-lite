@@ -6,6 +6,8 @@
   "scripts": {
     "example:simple": "node ./examples/simple.js | pino",
     "example:http": "node ./examples/http.js | pino",
+    "preversion": "npm run readme:update",
+    "readme:update": "md-magic --path README.md",
     "test": "lab -v"
   },
   "keywords": [
@@ -22,6 +24,7 @@
   "devDependencies": {
     "eslint": "^4.10.0",
     "lab": "^14.3.1",
+    "markdown-magic": "^0.1.19",
     "pino": "^4.10.0",
     "wreck": "^12.5.1"
   },
