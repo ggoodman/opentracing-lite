@@ -14,7 +14,7 @@ describe('Basic usage', { parallel: true }, () => {
             onStartSpan(event) {
                 const span = event.span;
 
-                Assert(span.getOperationName('span'));
+                Assert.ok(span.getOperationName('span'));
                 done();
             },
         });
@@ -27,7 +27,7 @@ describe('Basic usage', { parallel: true }, () => {
             onFinishSpan(event) {
                 const span = event.span;
 
-                Assert(span.getOperationName('span'));
+                Assert.ok(span.getOperationName('span'));
                 done();
             },
         });
@@ -39,19 +39,19 @@ describe('Cross-process serialization', { parallel: true }, () => {
     it('can be used to inject a span into http headers', done => {
         const tracer = new Tracing.Tracer({
             onInjectSpanContext(event) {
-                Assert(event.carrier === headers);
-                Assert(event.format === Tracing.FORMAT_HTTP_HEADERS);
-                Assert(event.spanContext === span.context());
+                Assert.ok(event.carrier === headers);
+                Assert.ok(event.format === Tracing.FORMAT_HTTP_HEADERS);
+                Assert.ok(event.spanContext === span.context());
 
-                Assert(
+                Assert.ok(
                     event.carrier[Tracing.Tracer.CARRIER_KEY_BAGGAGE_ITEMS] ===
                         JSON.stringify({})
                 );
-                Assert(
+                Assert.ok(
                     event.carrier[Tracing.Tracer.CARRIER_KEY_SPAN_IDS] ===
                         span.context().spanId
                 );
-                Assert(
+                Assert.ok(
                     event.carrier[Tracing.Tracer.CARRIER_KEY_TRACE_ID] ===
                         span.context().traceId
                 );
@@ -68,8 +68,8 @@ describe('Cross-process serialization', { parallel: true }, () => {
     it('can revive serialized state', done => {
         const tracer = new Tracing.Tracer({
             onExtractSpanContext(event) {
-                Assert(event.carrier === headers);
-                Assert(event.format === Tracing.FORMAT_HTTP_HEADERS);
+                Assert.ok(event.carrier === headers);
+                Assert.ok(event.format === Tracing.FORMAT_HTTP_HEADERS);
 
                 Assert.deepEqual(span.context(), event.spanContext);
 
@@ -125,5 +125,25 @@ describe('Cross-process serialization', { parallel: true }, () => {
         Assert.deepEqual(childSpan.context(), revivedChildSpanContext);
 
         done();
+    });
+});
+
+describe('Span logging', { parallel: true }, () => {
+    it('will trigger a log event with the span, fields and timestamp supplied', done => {
+        const tracer = new Tracing.Tracer();
+        const span = tracer.startSpan('span');
+        const fields = { a: 'b' };
+        const timestamp = Date.now();
+
+        tracer.events.on('log', event => {
+            Assert.ok(event.span === span);
+            Assert.deepEqual(event.fields, fields);
+            Assert.ok(event.fields !== fields, 'The log event fields is a cloned object');
+            Assert.ok(event.timestamp === timestamp);
+
+            return done();
+        });
+
+        span.log(fields, timestamp);
     });
 });
