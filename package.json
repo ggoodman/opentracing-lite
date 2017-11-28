@@ -1,6 +1,6 @@
 {
   "name": "opentracing-lite",
-  "version": "1.0.0",
+  "version": "1.0.0-alpha.0",
   "description": "A simple opentracing client",
   "main": "index.js",
   "scripts": {
