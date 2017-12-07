@@ -48,7 +48,7 @@ describe('Cross-process serialization', { parallel: true }, () => {
                         JSON.stringify({})
                 );
                 Assert.ok(
-                    event.carrier[Tracing.Tracer.CARRIER_KEY_SPAN_IDS] ===
+                    event.carrier[Tracing.Tracer.CARRIER_KEY_SPAN_ID] ===
                         span.context().spanId
                 );
                 Assert.ok(
@@ -123,6 +123,11 @@ describe('Cross-process serialization', { parallel: true }, () => {
         );
 
         Assert.deepEqual(childSpan.context(), revivedChildSpanContext);
+
+        const spanIds = childSpan.context().spanId.split(Tracing.Tracer.SPAN_DELIMITER);
+
+        Assert.equal(spanIds.length, 2);
+        Assert.equal(spanIds[0], span.context().spanId);
 
         done();
     });
